@@ -1,0 +1,329 @@
+(function(){
+
+// Generic stopPropagation - may not need this
+var stopProp = function(e){
+	e.stopPropagation();
+};
+
+
+// Base layout class, controls everything
+var Layout = window.Layout = new Class({
+
+	Implements: [Options, Events, Class.Binds],
+
+	options: {
+		// Pixel snap for Units
+		snap: 20,
+		// Min size of Unit in pixels - gets passed to Unit instances
+		minSize: 200,
+		// Max size of Unit in pixels - gets passed to Unit instances
+		maxSize: 2000
+	},
+
+	units: [],
+
+	containerOffset: {
+		x: 0,
+		y: 0
+	},
+
+	initialize: function(container, options){
+		this.container = document.id(container);
+		this.setOptions(options);
+		this.updateContainerOffset();
+		// Add double click event handler
+		this.container
+			.addEvent('mousedown', function(e){ e.preventDefault(); })
+			.addEvent('dblclick', this.bound('_handleDoubleClick'));
+	},
+
+	updateContainerOffset: function(){
+		this.containerOffset = this.container.getPosition(document.body);
+	},
+
+	// Add a new Unit with options passed in, and store a reference in this.units
+	addUnit: function(options){
+		options.onDestroy = this.bound('removeUnit');
+		var canvas = new Unit(this.container, options, this.containerOffset);
+		this.units.push(canvas);
+		this.fireEvent('addUnit', canvas);
+		return this;
+	},
+
+	removeUnit: function(unit){
+		var i = this.units.indexOf(unit);
+		if (i > -1) this.units.splice(i, 1);
+		return this;
+	},
+
+	clearLayout: function(){
+		while(this.units.length)
+			this.units[0].destroy();
+	},
+
+	loadLayout: function(layout){
+		if (typeOf(layout) !== 'array') throw new Error('Layout: Not a valid layout');
+		this.clearLayout();
+		layout.each(function(options){
+			this.addUnit(options);
+		}, this);
+	},
+
+	getLayout: function(){
+		var scene = [],
+			getSceneInfo = function(instance){
+				var unit = {
+					id         : instance.options.id,
+					minSize    : instance.options.minSize,
+					maxSize    : instance.options.maxSize,
+					coords     : {
+						top    : instance.options.coords.top,
+						left   : instance.options.coords.left,
+						width  : instance.options.coords.width,
+						height : instance.options.coords.height
+					}
+				};
+
+				scene.push(unit);
+			};
+
+		this.units.each(getSceneInfo);
+
+		return scene;
+	},
+
+	getUnit: function(name){},
+
+	_handleDoubleClick: function(e){
+		// Offset the pointer coords to center the new Unit under the cursor
+		var opts = this.options,
+			y = e.page.y - this.containerOffset.y - (opts.minSize / 2),
+			x = e.page.x - this.containerOffset.x - (opts.minSize / 2);
+
+		// Ensure that the Unit is not outside the container
+		x = x - (x % opts.snap);
+		y = y - (y % opts.snap);
+
+		if (x < opts.snap) x = opts.snap;
+		if (y < opts.snap) y = opts.snap;
+
+		// Add a unit with the following coords
+		this.addUnit({
+			id: String.uniqueID(),
+			snap: opts.snap,
+			minSize: opts.minSize,
+			maxSize: opts.maxSize,
+			coords: {
+				top: y,
+				left: x
+			}
+		});
+	}
+
+});
+
+var Unit = window.Layout.Unit = new Class({
+
+	Implements: [Options, Events, Class.Binds],
+
+	options: {
+		// Unique ID for Unit. Can be used to select the canvas from Layout class
+		id: null,
+		// Min pixels to snap the Unit too
+		snap: 20,
+		// Min size of Unit in pixels
+		minSize: 200,
+		// Max size of Unit in pixels
+		maxSize: 800,
+		// Initial CSS coords of Unit
+		coords: {
+			top: 0,
+			left: 0,
+			width: 200,
+			height: 200
+		}
+
+	},
+
+	// Current mode of Unit. Can be: display, move, resize
+	mode: 'display',
+
+	// Offsets used for resizing and dragging
+	_dragOffset: {
+		x: 0,
+		y: 0
+	},
+
+	containerOffset: {
+		x: 0,
+		y: 0
+	},
+
+	initialize: function(container, options, containerOffset){
+		this.container = document.id(container);
+		this.setOptions(options);
+		if (containerOffset)
+			this.containerOffset = containerOffset;
+
+		// Create element container
+		this.element = new Element('div', {
+			'class': 'canvas-container',
+			styles: this.options.coords
+		});
+
+		this.element.setStyles({
+			position: 'absolute',
+			cursor: 'move'
+		});
+
+		// Create resize controller
+		this.resize = new Element('div', {
+			'class': 'resize'
+		}).inject(this.element);
+
+		// Create delete element
+		this.remove = new Element('div', {
+			'class': 'remove-canvas'
+		}).inject(this.element);
+
+		// Add Drag, Resize and Remove events
+		this.element
+			.addEvent('mousedown', this.bound('_handleMoveStart'))
+			.addEvent('dblclick', stopProp);
+		this.resize.addEvent('mousedown', this.bound('_handleResizeDown'));
+
+		this.remove
+			.addEvent('click', this.bound('_handleDestroy'))
+			.addEvent('mousedown', stopProp); // This protects remove from triggering drag
+
+		// Kicking shit off by injecting the element into supplied container
+		this.element.inject(this.container);
+	},
+
+	// Allows element to be selected when passing instance into document.id()
+	toElement: function(){
+		return this.element;
+	},
+
+	destroy: function(){
+		this.element.destroy();
+		this.fireEvent('destroy', this);
+	},
+
+	// Destroy's canvas, needs work
+	_handleDestroy: function(e){
+		e.stopPropagation();
+		this.destroy();
+	},
+
+	_handleMoveStart: function(e){
+		// Setup dragOffset to be position of pointer relative to container
+		var pointer = Unit.round(e.page, this.options.snap, false),
+			element = Unit.round(this.element.getPosition(this.container), this.options.snap, false);
+
+		this._dragOffset = {
+			x: pointer.x - element.x,
+			y: pointer.y - element.y
+		};
+
+		this.mode = 'move';
+
+		this.container.addEvents({
+			'mousemove': this.bound('_handleMove'),
+			'mouseup': this.bound('_handleUp')
+		});
+
+		e.stopPropagation();
+	},
+
+	_handleResizeDown: function(e){
+		// Set dragOffset to be the position of the element
+		this._dragOffset = Unit.round(this.element.getPosition(this.container), this.options.snap, false);
+
+		this.mode = 'resize';
+
+		this.container.addEvents({
+			'mousemove': this.bound('_handleMove'),
+			'mouseup': this.bound('_handleUp')
+		});
+
+		e.stopPropagation();
+	},
+
+	_handleMove: function(e){
+		// Round pointer coordinates, if it's resize we need to round up
+		var opts = this.options,
+			coords = Unit.round(e.page, opts.snap, this.mode === 'resize'),
+			styles;
+
+		// Subtract offset
+		coords.x -= this._dragOffset.x;
+		coords.y -= this._dragOffset.y;
+
+		// Move Mode: Ensure element doesn't outside bounds
+		if (this.mode === 'move'){
+			if (coords.x < opts.snap) coords.x = opts.snap;
+			if (coords.y < opts.snap) coords.y = opts.snap;
+
+			// Set top and left positioning
+			opts.coords.top = coords.y;
+			opts.coords.left = coords.x;
+
+			styles = {
+				top: coords.y,
+				left: coords.x
+			};
+		}
+		// Resize Mode: Ensure element is within min/max size
+		if (this.mode === 'resize'){
+			coords.x -= this.containerOffset.x;
+			coords.y -= this.containerOffset.y;
+			if (coords.x < opts.minSize) coords.x = opts.minSize;
+			if (coords.y < opts.minSize) coords.y = opts.minSize;
+
+			if (coords.x > opts.maxSize) coords.x = opts.maxSize;
+			if (coords.y > opts.maxSize) coords.y = opts.maxSize;
+
+			// Set width and height after it's been clamped
+			opts.coords.height = coords.y;
+			opts.coords.width = coords.x;
+
+			styles = {
+				width: coords.x,
+				height: coords.y
+			};
+		}
+
+		// Update element
+		this.element.setStyles(styles);
+	},
+
+	_handleUp: function(){
+		// Remove move and up events
+		this.container
+			.removeEvent('mousemove', this.bound('_handleMove'))
+			.removeEvent('mouseup', this.bound('_handleUp'));
+	}
+
+});
+
+Unit.extend({
+
+	// Duplicate and round coords up or down based on snap
+	round: function(page, snap, roundUp){
+		var coords = {
+				x: page.x,
+				y: page.y
+			},
+			moduloX = coords.x % snap,
+			moduloY = coords.y % snap;
+
+		coords.x += (roundUp) ? snap - moduloX : -moduloX;
+		coords.y += (roundUp) ? snap - moduloY : -moduloY;
+
+		return coords;
+	}
+
+});
+
+}).call(this);

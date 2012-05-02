@@ -1,0 +1,150 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+	<title>Layout Generator</title>
+	<script src="https://ajax.googleapis.com/ajax/libs/mootools/1.4.5/mootools-yui-compressed.js" type="text/javascript" charset="utf-8"></script>
+	<script src="https://raw.github.com/cpojer/mootools-class-extras/master/Source/Class.Binds.js" type="text/javascript" charset="utf-8"></script>
+	<script src="../Source/Layout.js" type="text/javascript" charset="utf-8"></script>
+	<style type="text/css" media="screen">
+		html, body {
+			padding:0;
+			margin:0;
+			background-color:#333;
+			font-family:Helvetica Neue, Arial, sans-serif;
+		}
+
+		h1 {
+			position:relative;
+			z-index:1;
+			font-size:32px;
+			line-height:1.3em;
+			color:#fff;
+			margin:8px 20px;
+			text-shadow:0 1px 3px rgba(0,0,0,.1);
+		}
+
+		#container {
+			position:absolute;
+			z-index:0;
+			top:40px;
+			left:0;
+			right:0;
+			bottom:0;
+			background-color:#eee;
+		}
+
+		.canvas-container {
+			background-color:#fff;
+
+			-webkit-border-radius:4px;
+			-moz-border-radius:4px;
+			-ms-border-radius:4px;
+			-o-border-radius:4px;
+			border-radius:4px;
+
+			-webkit-box-shadow:0 2px 5px rgba(0,0,0,.2);
+			-moz-box-shadow:0 2px 5px rgba(0,0,0,.2);
+			-ms-box-shadow:0 2px 5px rgba(0,0,0,.2);
+			-o-box-shadow:0 2px 5px rgba(0,0,0,.2);
+			box-shadow:0 2px 5px rgba(0,0,0,.2);
+		}
+
+		.resize {
+			position: absolute;
+			display:none;
+			bottom:0;
+			right:0;
+			width: 20px;
+			height: 20px;
+			background-color:rgba(0,0,0,.1);
+			cursor:se-resize;
+			-webkit-border-radius:5px;
+		}
+
+		.remove-canvas {
+			position:absolute;
+			display:none;
+			width:30px;
+			height:30px;
+			top:-15px;
+			left:-15px;
+			background-color:rgba(255,0,0,.2);
+			-webkit-border-radius:200px;
+			cursor:pointer;
+			-webkit-box-shadow:0 2px 5px rgba(0,0,0,.1);
+		}
+
+		.canvas-container:hover .remove-canvas,
+		.canvas-container:hover .resize {
+			display:block;
+		}
+
+		.tools {
+			overflow:hidden;
+		}
+
+		.tools * {
+			float:left;
+		}
+
+		.tools button {
+			margin:12px 0 0 20px;
+		}
+	</style>
+</head>
+<body>
+
+<div class="tools">
+	<h1>Layout.js</h1>
+	<button id="save-layout">Save Layout</button>
+	<button id="reset-layout">Reset Layout</button>
+	<button id="load-layout">Load Layout</button>
+	<button id="clear-layout">Clear Layout</button>
+</div>
+
+<div id="container"></div>
+
+<script type="text/javascript" charset="utf-8">
+(function(){
+
+// Instantiate Layout.js
+var layoutInstance = new Layout('container');
+
+// Button Utilities
+var saveLayout = document.id('save-layout'),
+	loadLayout = document.id('load-layout'),
+	resetLayout = document.id('reset-layout');
+	clearLayout = document.id('clear-layout');
+
+// Save layout to localStorage
+saveLayout.addEvent('click', function(e){
+	e.preventDefault();
+	var json = layoutInstance.getLayout(),
+		toSave = JSON.encode(json);
+
+	if (json && json.length)
+		window.localStorage.layout = toSave;
+});
+
+// Load layout from localStorage
+loadLayout.addEvent('click', function(){
+	var layout = JSON.decode(window.localStorage.layout);
+	layoutInstance.loadLayout(layout);
+});
+
+// Reset current layout, but don't clear saved layout
+resetLayout.addEvent('click', function(){
+	layoutInstance.clearLayout();
+});
+
+// Clear layout from both localStorage and layout instance
+clearLayout.addEvent('click', function(){
+	layoutInstance.clearLayout();
+	window.localStorage.removeItem('layout');
+});
+
+}).call(this);
+</script>
+</body>
+</html>

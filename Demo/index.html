@@ -91,16 +91,24 @@
 		.tools button {
 			margin:12px 0 0 20px;
 		}
+
+		.tools div {
+			margin:14px 0 0 20px;
+			color:#999;
+			font-size:13px;
+			line-height:16px;
+		}
 	</style>
 </head>
 <body>
 
 <div class="tools">
 	<h1>Layout.js</h1>
-	<button id="save-layout">Save Layout</button>
-	<button id="reset-layout">Reset Layout</button>
-	<button id="load-layout">Load Layout</button>
-	<button id="clear-layout">Clear Layout</button>
+	<button id="save-layout" title="Save layout to localStorage">Save Layout</button>
+	<button id="reset-layout" title="Clear layout without removing the saved localStorage copy">Reset Layout</button>
+	<button id="load-layout" title="Load layout from localStorage">Load Layout</button>
+	<button id="clear-layout" title="Clear layout and clear from localStorage">Clear Layout</button>
+	<div>Simply double click to add new elements</div>
 </div>
 
 <div id="container"></div>

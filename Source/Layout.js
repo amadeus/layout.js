@@ -25,6 +25,7 @@ var Layout = window.Layout = new Class({
 		unitClass: 'layout-unit',
 		unitDestroyClass: 'unit-destroy',
 		unitResizeClass: 'unit-resize',
+		unitDraggedClass: 'dragging',
 
 		unitIdPrefix: 'unit-'
 	},
@@ -43,6 +44,16 @@ var Layout = window.Layout = new Class({
 		this.updateContainerOffset();
 	},
 
+	getUnit: function(id){
+		var unit = null;
+
+		this.units.each(function(u){
+			if (u.options.id === id) unit = u;
+		}, this);
+
+		return unit;
+	},
+
 	setEditable: function(bool){
 		if ((bool && this.editable) || (!bool && !this.editable)) return this;
 
@@ -59,26 +70,6 @@ var Layout = window.Layout = new Class({
 		return this;
 	},
 
-	_attach: function(){
-		// Add double click event handler
-		this.container.addEvents({
-			'mousedown': preventDefault,
-			'dblclick': this.bound('_handleDoubleClick')
-		});
-
-		this.units.invoke('attach');
-	},
-
-	_detach: function(){
-		this.container.removeEvents({
-			'mousedown': preventDefault,
-			'dblclick': this.bound('_handleDoubleClick')
-		});
-
-		this.units.invoke('detach');
-	},
-
-
 	updateContainerOffset: function(){
 		this.containerOffset = this.container.getPosition(document.body);
 	},
@@ -87,28 +78,35 @@ var Layout = window.Layout = new Class({
 	addUnit: function(options){
 		var opts = this.options, unit;
 
-		options.onDestroy = this.bound('removeUnit');
-		options.minSize = opts.minSize;
-		options.maxSize = opts.maxSize;
-		options.maxSize = opts.maxSize;
+		options.onDestroy    = this.bound('removeUnit');
+		options.onResizeEnd  = this.bound('_handleUnitResizeEnd');
+		options.onMoveEnd    = this.bound('_handleUnitMoveEnd');
+		options.minSize      = opts.minSize;
+		options.maxSize      = opts.maxSize;
+		options.maxSize      = opts.maxSize;
 		options.unitIdPrefix = opts.unitIdPrefix;
 
 		unit = new Unit(this.container, options, this.containerOffset);
 		if (this.editable) unit.attach();
 		this.units.push(unit);
-		this.fireEvent('addUnit', unit);
+		this.fireEvent('addUnit', [unit, this]);
 		return this;
 	},
 
 	removeUnit: function(unit){
 		var i = this.units.indexOf(unit);
-		if (i > -1) this.units.splice(i, 1);
+		if (i > -1){
+			this.units.splice(i, 1);
+			this.fireEvent('removeUnit', [unit, this]);
+		}
 		return this;
 	},
 
 	clearLayout: function(){
 		while(this.units.length)
 			this.units[0].destroy();
+		this.fireEvent('clearLayout', this);
+		return this;
 	},
 
 	loadLayout: function(layout){
@@ -117,6 +115,9 @@ var Layout = window.Layout = new Class({
 		layout.each(function(options){
 			this.addUnit(options);
 		}, this);
+
+		this.fireEvent('loadLayout', [this.units, this]);
+		return this;
 	},
 
 	getLayout: function(){
@@ -140,7 +141,32 @@ var Layout = window.Layout = new Class({
 		return scene;
 	},
 
-	getUnit: function(name){},
+	_attach: function(){
+		// Add double click event handler
+		this.container.addEvents({
+			'mousedown': preventDefault,
+			'dblclick': this.bound('_handleDoubleClick')
+		});
+
+		this.units.invoke('attach');
+	},
+
+	_detach: function(){
+		this.container.removeEvents({
+			'mousedown': preventDefault,
+			'dblclick': this.bound('_handleDoubleClick')
+		});
+
+		this.units.invoke('detach');
+	},
+
+	_handleUnitResizeEnd: function(unit){
+		this.fireEvent('resizeUnit', [unit, this]);
+	},
+
+	_handleUnitMoveEnd: function(unit){
+		this.fireEvent('moveUnit', [unit, this]);
+	},
 
 	_handleDoubleClick: function(e){
 		// Offset the pointer coords to center the new Unit under the cursor
@@ -192,6 +218,7 @@ var Unit = window.Layout.Unit = new Class({
 		unitClass: 'layout-unit',
 		unitDestroyClass: 'unit-destroy',
 		unitResizeClass: 'unit-resize',
+		unitDraggedClass: 'dragging',
 
 		unitIdPrefix: 'unit-'
 	},
@@ -297,6 +324,7 @@ var Unit = window.Layout.Unit = new Class({
 		};
 
 		this.mode = 'move';
+		this.element.addClass(this.options.unitDraggedClass);
 
 		this.container.addEvents({
 			'mousemove': this.bound('_handleMove'),
@@ -370,6 +398,11 @@ var Unit = window.Layout.Unit = new Class({
 
 	_handleUp: function(){
 		// Remove move and up events
+		if (this.mode === 'resize') this.fireEvent('resizeEnd', this);
+		if (this.mode === 'move') this.fireEvent('moveEnd', this);
+
+		this.mode = 'display';
+		this.element.removeClass(this.options.unitDraggedClass);
 		this.container
 			.removeEvent('mousemove', this.bound('_handleMove'))
 			.removeEvent('mouseup', this.bound('_handleUp'));

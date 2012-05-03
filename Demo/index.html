@@ -3,6 +3,7 @@
 <head>
 	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 	<title>Layout Generator</title>
+	<script src="https://raw.github.com/amadeus/dbg/master/dbg.js" type="text/javascript" charset="utf-8"></script>
 	<script src="https://ajax.googleapis.com/ajax/libs/mootools/1.4.5/mootools-yui-compressed.js" type="text/javascript" charset="utf-8"></script>
 	<script src="https://raw.github.com/cpojer/mootools-class-extras/master/Source/Class.Binds.js" type="text/javascript" charset="utf-8"></script>
 	<script src="../Source/Layout.js" type="text/javascript" charset="utf-8"></script>
@@ -34,6 +35,14 @@
 			background-color:#eee;
 		}
 
+		#edit-layout {
+			width:120px;
+		}
+
+		#container.editable {
+			background:#eee url(editable.png) repeat -1px -1px;
+		}
+
 		.editable .layout-unit {
 			cursor:move;
 		}
@@ -52,6 +61,23 @@
 			-ms-box-shadow:0 2px 5px rgba(0,0,0,.2);
 			-o-box-shadow:0 2px 5px rgba(0,0,0,.2);
 			box-shadow:0 2px 5px rgba(0,0,0,.2);
+		}
+
+		.layout-unit.dragging {
+			opacity:.7;
+			cursor:move !important;
+			z-index:99999;
+
+			-webkit-box-shadow:0 5px 10px rgba(0,0,0,.4);
+			-moz-box-shadow:0 5px 10px rgba(0,0,0,.4);
+			-ms-box-shadow:0 5px 10px rgba(0,0,0,.4);
+			-o-box-shadow:0 5px 10px rgba(0,0,0,.4);
+			box-shadow:0 5px 10px rgba(0,0,0,.4);
+		}
+
+		.layout-unit.dragging .unit-destroy,
+		.layout-unit.dragging .unit-resize {
+			display:none !important;
 		}
 
 		.unit-resize {
@@ -98,7 +124,7 @@
 
 		.tools div {
 			margin:14px 0 0 20px;
-			color:#999;
+			color:#fff;
 			font-size:13px;
 			line-height:16px;
 		}
@@ -122,7 +148,27 @@
 (function(){
 
 // Instantiate Layout.js
-var layoutInstance = new Layout('container');
+var layoutInstance = window.layoutInstance = new Layout('container');
+
+layoutInstance.addEvent('resizeUnit', function(){
+	dbg.log('resized a unit', arguments);
+});
+
+layoutInstance.addEvent('moveUnit', function(){
+	dbg.log('moved a unit', arguments);
+});
+
+layoutInstance.addEvent('removeUnit', function(){
+	dbg.log('removed a unit', arguments);
+});
+
+layoutInstance.addEvent('addUnit', function(){
+	dbg.log('added a unit', arguments);
+});
+
+layoutInstance.addEvent('clearLayout', function(){
+	dbg.log('cleared a layout', arguments);
+});
 
 // Button Utilities
 var editLayout  = document.id('edit-layout'),
@@ -140,7 +186,7 @@ editLayout.addEvent('click', function(e){
 	} else {
 		layoutInstance.setEditable(true);
 		editLayout.set('text', 'Disable Edit Mode');
-		tools.setStyle('background-color', '#adb800');
+		tools.setStyle('background-color', '#004d94');
 	}
 });
 

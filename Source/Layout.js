@@ -1,9 +1,10 @@
 (function(){
 
 // Generic stopPropagation - may not need this
-var stopProp = function(e){
-	e.stopPropagation();
-};
+var stopPropagation = function(e){ e.stopPropagation(); },
+	preventDefault  = function(e){ e.preventDefault(); },
+	EDIT            = 'edit',
+	STATIC          = 'static';
 
 
 // Base layout class, controls everything
@@ -17,10 +18,19 @@ var Layout = window.Layout = new Class({
 		// Min size of Unit in pixels - gets passed to Unit instances
 		minSize: 200,
 		// Max size of Unit in pixels - gets passed to Unit instances
-		maxSize: 2000
+		maxSize: 2000,
+
+		editClass: 'editable',
+
+		unitClass: 'layout-unit',
+		unitDestroyClass: 'unit-destroy',
+		unitResizeClass: 'unit-resize',
+
+		unitIdPrefix: 'unit-'
 	},
 
 	units: [],
+	editable: false,
 
 	containerOffset: {
 		x: 0,
@@ -31,11 +41,43 @@ var Layout = window.Layout = new Class({
 		this.container = document.id(container);
 		this.setOptions(options);
 		this.updateContainerOffset();
-		// Add double click event handler
-		this.container
-			.addEvent('mousedown', function(e){ e.preventDefault(); })
-			.addEvent('dblclick', this.bound('_handleDoubleClick'));
 	},
+
+	setEditable: function(bool){
+		if ((bool && this.editable) || (!bool && !this.editable)) return this;
+
+		if (bool){
+			this.container.addClass(this.options.editClass);
+			this._attach();
+			this.editable = true;
+		} else {
+			this.container.removeClass(this.options.editClass);
+			this._detach();
+			this.editable = false;
+		}
+
+		return this;
+	},
+
+	_attach: function(){
+		// Add double click event handler
+		this.container.addEvents({
+			'mousedown': preventDefault,
+			'dblclick': this.bound('_handleDoubleClick')
+		});
+
+		this.units.invoke('attach');
+	},
+
+	_detach: function(){
+		this.container.removeEvents({
+			'mousedown': preventDefault,
+			'dblclick': this.bound('_handleDoubleClick')
+		});
+
+		this.units.invoke('detach');
+	},
+
 
 	updateContainerOffset: function(){
 		this.containerOffset = this.container.getPosition(document.body);
@@ -43,10 +85,18 @@ var Layout = window.Layout = new Class({
 
 	// Add a new Unit with options passed in, and store a reference in this.units
 	addUnit: function(options){
+		var opts = this.options, unit;
+
 		options.onDestroy = this.bound('removeUnit');
-		var canvas = new Unit(this.container, options, this.containerOffset);
-		this.units.push(canvas);
-		this.fireEvent('addUnit', canvas);
+		options.minSize = opts.minSize;
+		options.maxSize = opts.maxSize;
+		options.maxSize = opts.maxSize;
+		options.unitIdPrefix = opts.unitIdPrefix;
+
+		unit = new Unit(this.container, options, this.containerOffset);
+		if (this.editable) unit.attach();
+		this.units.push(unit);
+		this.fireEvent('addUnit', unit);
 		return this;
 	},
 
@@ -74,8 +124,6 @@ var Layout = window.Layout = new Class({
 			getSceneInfo = function(instance){
 				var unit = {
 					id         : instance.options.id,
-					minSize    : instance.options.minSize,
-					maxSize    : instance.options.maxSize,
 					coords     : {
 						top    : instance.options.coords.top,
 						left   : instance.options.coords.left,
@@ -111,8 +159,6 @@ var Layout = window.Layout = new Class({
 		this.addUnit({
 			id: String.uniqueID(),
 			snap: opts.snap,
-			minSize: opts.minSize,
-			maxSize: opts.maxSize,
 			coords: {
 				top: y,
 				left: x
@@ -127,7 +173,7 @@ var Unit = window.Layout.Unit = new Class({
 	Implements: [Options, Events, Class.Binds],
 
 	options: {
-		// Unique ID for Unit. Can be used to select the canvas from Layout class
+		// Unique ID for Unit. Can be used to select the unit from Layout class
 		id: null,
 		// Min pixels to snap the Unit too
 		snap: 20,
@@ -141,8 +187,13 @@ var Unit = window.Layout.Unit = new Class({
 			left: 0,
 			width: 200,
 			height: 200
-		}
+		},
 
+		unitClass: 'layout-unit',
+		unitDestroyClass: 'unit-destroy',
+		unitResizeClass: 'unit-resize',
+
+		unitIdPrefix: 'unit-'
 	},
 
 	// Current mode of Unit. Can be: display, move, resize
@@ -167,37 +218,56 @@ var Unit = window.Layout.Unit = new Class({
 
 		// Create element container
 		this.element = new Element('div', {
-			'class': 'canvas-container',
+			id: this.options.unitIdPrefix + this.options.id,
+			'class': this.options.unitClass,
 			styles: this.options.coords
 		});
 
 		this.element.setStyles({
-			position: 'absolute',
-			cursor: 'move'
+			position: 'absolute'
 		});
 
 		// Create resize controller
 		this.resize = new Element('div', {
-			'class': 'resize'
-		}).inject(this.element);
+			'class': this.options.unitResizeClass,
+			events: {
+				'mousedown': this.bound('_handleResizeDown')
+			}
+		});
 
 		// Create delete element
 		this.remove = new Element('div', {
-			'class': 'remove-canvas'
-		}).inject(this.element);
-
-		// Add Drag, Resize and Remove events
-		this.element
-			.addEvent('mousedown', this.bound('_handleMoveStart'))
-			.addEvent('dblclick', stopProp);
-		this.resize.addEvent('mousedown', this.bound('_handleResizeDown'));
-
-		this.remove
-			.addEvent('click', this.bound('_handleDestroy'))
-			.addEvent('mousedown', stopProp); // This protects remove from triggering drag
+			'class': this.options.unitDestroyClass,
+			events: {
+				'click': this.bound('_handleDestroy'),
+				'mousedown': stopPropagation // This protects remove from triggering drag
+			}
+		});
 
 		// Kicking shit off by injecting the element into supplied container
 		this.element.inject(this.container);
+	},
+
+	attach: function(){
+		this.element
+			.addEvents({
+				'dblclick': stopPropagation,
+				'mousedown': this.bound('_handleMoveStart')
+			});
+
+		this.resize.inject(this.element);
+		this.remove.inject(this.element);
+	},
+
+	detach: function(){
+		this.element
+			.removeEvents({
+				'dblclick': stopPropagation,
+				'mousedown': this.bound('_handleMoveStart')
+			});
+
+		this.resize.dispose(this.element);
+		this.remove.dispose(this.element);
 	},
 
 	// Allows element to be selected when passing instance into document.id()
@@ -210,7 +280,7 @@ var Unit = window.Layout.Unit = new Class({
 		this.fireEvent('destroy', this);
 	},
 
-	// Destroy's canvas, needs work
+	// Destroy's unit, needs work
 	_handleDestroy: function(e){
 		e.stopPropagation();
 		this.destroy();

@@ -34,7 +34,11 @@
 			background-color:#eee;
 		}
 
-		.canvas-container {
+		.editable .layout-unit {
+			cursor:move;
+		}
+
+		.layout-unit {
 			background-color:#fff;
 
 			-webkit-border-radius:4px;
@@ -50,7 +54,7 @@
 			box-shadow:0 2px 5px rgba(0,0,0,.2);
 		}
 
-		.resize {
+		.unit-resize {
 			position: absolute;
 			display:none;
 			bottom:0;
@@ -62,7 +66,7 @@
 			-webkit-border-radius:5px;
 		}
 
-		.remove-canvas {
+		.unit-destroy {
 			position:absolute;
 			display:none;
 			width:30px;
@@ -75,8 +79,8 @@
 			-webkit-box-shadow:0 2px 5px rgba(0,0,0,.1);
 		}
 
-		.canvas-container:hover .remove-canvas,
-		.canvas-container:hover .resize {
+		.layout-unit:hover .unit-destroy,
+		.layout-unit:hover .unit-resize {
 			display:block;
 		}
 
@@ -102,8 +106,9 @@
 </head>
 <body>
 
-<div class="tools">
+<div class="tools" id="tools">
 	<h1>Layout.js</h1>
+	<button id="edit-layout" title="Enable edit mode">Enable Edit Mode</button>
 	<button id="save-layout" title="Save layout to localStorage">Save Layout</button>
 	<button id="reset-layout" title="Clear layout without removing the saved localStorage copy">Reset Layout</button>
 	<button id="load-layout" title="Load layout from localStorage">Load Layout</button>
@@ -120,10 +125,24 @@
 var layoutInstance = new Layout('container');
 
 // Button Utilities
-var saveLayout = document.id('save-layout'),
-	loadLayout = document.id('load-layout'),
-	resetLayout = document.id('reset-layout');
-	clearLayout = document.id('clear-layout');
+var editLayout  = document.id('edit-layout'),
+	saveLayout  = document.id('save-layout'),
+	loadLayout  = document.id('load-layout'),
+	resetLayout = document.id('reset-layout'),
+	clearLayout = document.id('clear-layout'),
+	tools       = document.id('tools');
+
+editLayout.addEvent('click', function(e){
+	if (layoutInstance.editable){
+		layoutInstance.setEditable(false);
+		editLayout.set('text', 'Enable Edit Mode');
+		tools.setStyle('background-color', '#333');
+	} else {
+		layoutInstance.setEditable(true);
+		editLayout.set('text', 'Disable Edit Mode');
+		tools.setStyle('background-color', '#adb800');
+	}
+});
 
 // Save layout to localStorage
 saveLayout.addEvent('click', function(e){
